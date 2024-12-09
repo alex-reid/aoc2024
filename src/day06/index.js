@@ -4,13 +4,16 @@ const parseInput = (rawInput) => {
   let sPos = [];
   return [
     rawInput.split("\n").map((v, y) =>
-      v.split("").map((v2, x) => {
-        if (v2 == "^") {
-          sPos = [x, y];
-          return false;
-        }
-        return v2 == "#";
-      }),
+      v
+        .trim()
+        .split("")
+        .map((v2, x) => {
+          if (v2 == "^") {
+            sPos = [x, y];
+            return false;
+          }
+          return v2 == "#";
+        }),
     ),
     sPos,
   ];
@@ -18,7 +21,6 @@ const parseInput = (rawInput) => {
 
 const part1 = (rawInput) => {
   const [input, startPos] = parseInput(rawInput);
-  console.log(startPos);
   const directions = [
     [0, -1],
     [1, 0],
@@ -86,7 +88,128 @@ const part1 = (rawInput) => {
  * ?? keep current approach of only storing the path where a turn happens ??
  * - create a function to walk the path given a starting point and direction
  */
+
+const directions = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+
+const walker = (
+  inputMap,
+  startPos,
+  path = [],
+  direction,
+  addObstacle = false,
+) => {
+  let input = inputMap;
+  const boundsX = input[0].length;
+  const boundsY = input.length;
+  let turns = direction;
+
+  // const turnAt = new Array(boundsY)
+  //   .fill("")
+  //   .map((_v) => new Array(boundsX).fill(false));
+  const turnAt = {};
+
+  // if (addObstacle) {
+  //   // do input map
+  //   input = [...inputMap.map((v) => [...v])];
+  //   input[addObstacle[1]][addObstacle[0]] = true;
+  // }
+
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < boundsX && y < boundsY;
+
+  const getDirection = (offset = 0) => directions[(turns + offset) % 4];
+
+  const isObstacleInFront = (x, y, offset = 0) => {
+    const [dirX, dirY] = getDirection(offset);
+    if (
+      addObstacle &&
+      addObstacle[1] === y + dirY &&
+      addObstacle[0] === x + dirX
+    ) {
+      return true;
+    }
+    return input?.[y + dirY]?.[x + dirX];
+  };
+
+  let [xPos, yPos] = startPos;
+  let isLoop = false;
+
+  path.push({ x: xPos, y: yPos, dir: turns });
+
+  // console.log(input, startPos, boundsX, boundsY);
+  // console.log(steps, visited);
+
+  while (inBounds(xPos, yPos)) {
+    const [dirX, dirY] = getDirection();
+
+    if (isObstacleInFront(xPos, yPos)) {
+      turns++;
+      if (!turnAt[yPos]) turnAt[yPos] = {};
+      turnAt[yPos][xPos] = turns;
+      continue;
+    }
+
+    // console.log(xPos, yPos);
+    xPos += dirX;
+    yPos += dirY;
+
+    if (!inBounds(xPos, yPos)) {
+      break;
+    }
+    const getTurn = turnAt?.[yPos]?.[xPos];
+    const turnDiff = (turns - getTurn) % 4;
+
+    if (turns > 1000) {
+      console.log("race condition");
+      isLoop = true;
+      break;
+    }
+
+    if (getTurn && (turnDiff === 1 || turnDiff === 3)) {
+      // console.log((turns - getTurn) % 4, getTurn, turns);
+      isLoop = true;
+      break;
+    }
+    path.push({ x: xPos, y: yPos, dir: turns });
+  }
+  // if (isLoop) printMaze(turnAt, input);
+  return [path, isLoop];
+};
+
 const part2 = (rawInput) => {
+  const [input, startPos] = parseInput(rawInput);
+  // console.log(startPos);
+  const [path] = walker(input, startPos, [], 0);
+  let loops = 0;
+  const boundsX = input[0].length;
+  const boundsY = input.length;
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < boundsX && y < boundsY;
+
+  // printMaze(visited, input);
+  // console.log(isLoop);
+  const obstacles = new Set();
+  path.forEach(({ x, y, dir }) => {
+    const [dirX, dirY] = directions[dir % 4];
+    const obstacle = [x + dirX, y + dirY];
+    const obString = "" + obstacle[0] + ":" + obstacle[1];
+    // console.log([x, y], dir, obstacle);
+    if (!obstacles.has(obString) && inBounds(obstacle[0], obstacle[1])) {
+      const [, isLoop] = walker(input, startPos, [], 0, obstacle);
+      if (isLoop) {
+        loops++;
+        // console.log(path);
+        obstacles.add(obString);
+      }
+    }
+  });
+  return loops;
+};
+
+const old_part2 = (rawInput) => {
   const [input, startPos] = parseInput(rawInput);
   // console.log(startPos);
   const directions = [
@@ -191,16 +314,15 @@ run({
     tests: [
       {
         input: `....#.....
-.........#
-..........
-..#.......
-.......#..
-..........
-.#..^.....
-........#.
-#.........
-......#...
-`,
+                .........#
+                ..........
+                ..#.......
+                .......#..
+                ..........
+                .#..^.....
+                ........#.
+                #.........
+                ......#...`,
         expected: 41,
       },
     ],
@@ -208,43 +330,51 @@ run({
   },
   part2: {
     tests: [
-      //       {
-      //         input: `....#.....
-      // .........#
-      // ..........
-      // ..#.......
-      // .......#..
-      // ..........
-      // .#..^.....
-      // ........#.
-      // #.........
-      // ......#...
-      // `,
-      //         expected: 6,
-      //       },
-      //       {
-      //         input: `.#..
-      // ..#.
-      // .^..`,
-      //         expected: 6,
-      //       },
-      //       {
-      //         input: `##..
-      // ...#
-      // ....
-      // ^.#.
-      // `,
-      //         expected: 0,
-      //       },
-      {
-        input: `.#...
-      ....#
-      .....
-      .^.#.
-      #....
-      ..#..`,
-        expected: 3,
-      },
+      // {
+      //   input: `....#.....
+      //           .........#
+      //           ..........
+      //           ..#.......
+      //           .......#..
+      //           ..........
+      //           .#..^.....
+      //           ........#.
+      //           #.........
+      //           ......#...`,
+      //   expected: 6,
+      // },
+      // {
+      //   input: `##..
+      //           ...#
+      //           ....
+      //           ^.#.`,
+      //   expected: 0,
+      // },
+      // {
+      //   input: `.#...
+      //           ....#
+      //           .....
+      //           .^.#.
+      //           #....
+      //           ..#..`,
+      //   expected: 3,
+      // },
+      // {
+      //   input: `...#.
+      //           ....#
+      //           .#...
+      //           .^..#
+      //           ..#..
+      //           ...#.`,
+      //   expected: 3,
+      // },
+      // {
+      //   input: `.#..
+      //           ...#
+      //           .^..
+      //           ..#.`,
+      //   expected: 1,
+      // },
     ],
 
     solution: part2,
